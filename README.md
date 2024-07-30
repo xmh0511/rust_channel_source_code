@@ -71,9 +71,9 @@ impl<T> Queue<T> {
     /// Pushes a new value onto this queue.
     pub fn push(&self, t: T) {
         unsafe {
-            let n = Node::new(Some(t));
-            let prev = self.head.swap(n, Ordering::AcqRel);
-            (*prev).next.store(n, Ordering::Release);
+            let n = Node::new(Some(t));  // #1
+            let prev = self.head.swap(n, Ordering::AcqRel);  // #2
+            (*prev).next.store(n, Ordering::Release);  // #3
         }
     }
 
@@ -90,13 +90,13 @@ impl<T> Queue<T> {
     pub fn pop(&self) -> PopResult<T> {
         unsafe {
             let tail = *self.tail.get();
-            let next = (*tail).next.load(Ordering::Acquire);
+            let next = (*tail).next.load(Ordering::Acquire);  // #4
 
-            if !next.is_null() {
+            if !next.is_null() { // #5
                 *self.tail.get() = next;
                 assert!((*tail).value.is_none());
                 assert!((*next).value.is_some());
-                let ret = (*next).value.take().unwrap();
+                let ret = (*next).value.take().unwrap();  
                 let _: Box<Node<T>> = Box::from_raw(tail);
                 return Data(ret);
             }
@@ -122,3 +122,6 @@ impl<T> Drop for Queue<T> {
 ````
 
 参考链接 https://edp.fortanix.com/docs/api/src/std/sync/mpsc/mpsc_queue.rs.html
+
+`#3`和`#4`是对同一个原子对象的release和acquire操作从而形成synchronization, 使得`#1` *happen-before* `#5`避免data race。而`#2`出的`Ordering::AcqRel`是为了让前一个`push`中的由`swap`产生的写和后一个`push`中由`swap`产的的读(其读取结果是`prev`)产生synchronization, 因为后一个`push`中对`pre`的写操作需要看到前一个`push`中`Node::new`,因为`pre`指向前一个`push`中`Node::new`的对象，因此需要前一个`push`中的`Node::new` *happens-before* 后一个`push`中对该memory location(即`pre`)的写，从而避免data race.
+

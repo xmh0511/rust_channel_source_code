@@ -123,5 +123,18 @@ impl<T> Drop for Queue<T> {
 
 参考链接 https://edp.fortanix.com/docs/api/src/std/sync/mpsc/mpsc_queue.rs.html
 
-`#3`和`#4`是对同一个原子对象的release和acquire操作从而形成synchronization, 使得`#1` *happen-before* `#5`避免data race。而`#2`出的`Ordering::AcqRel`是为了让前一个`push`中的由`swap`产生的写和后一个`push`中由`swap`产的的读(其读取结果是`prev`)产生synchronization, 因为后一个`push`中对`pre`的写操作需要看到前一个`push`中`Node::new`,因为`pre`指向前一个`push`中`Node::new`的对象，因此需要前一个`push`中的`Node::new` *happens-before* 后一个`push`中对该memory location(即`pre`)的写，从而避免data race.
+`#3`和`#4`是对同一个原子对象的release和acquire操作从而形成synchronization, 使得`#1` *happen-before* `#5`避免data race。而`#2`出的`Ordering::AcqRel`是为了让前一个`push`中的由`swap`产生的写和后一个`push`中由`swap`产的的读(其读取结果是`prev`)产生synchronization, 因为后一个`push`中对`pre`的写操作需要看到前一个`push`中`Node::new`,因为`pre`指向前一个`push`中`Node::new`的对象，因此需要前一个`push`中的`Node::new` *happens-before* 后一个`push`中对该memory location(即`pre`)的写，从而避免data race。
+
+`#2`是一个*read-modify-write*操作，这保证了一个线程中通过`swap`的读(`pre`)一定是另一个线程中`swap`写(`n`)的数据, 因此从`self.head`的modifiation order上看是这样的:
+```
+self.head: H
+self.head: N1, H.next -> N1 
+self.head: N2, N1.next -> N2
+self.head: N3, N2.next -> N3
+self.head: N4, N3.next -> N4
+.
+.
+.
+self.head: Nn, N(n-1).next -> Nn
+```
 

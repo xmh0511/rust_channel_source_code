@@ -138,3 +138,6 @@ self.head: N4, N3.next -> N4
 self.head: Nn, N(n-1).next -> Nn
 ```
 
+
+
+Details can be seen [cnt.md](https://github.com/xmh0511/rust_channel_source_code/blob/main/cnt.md)
